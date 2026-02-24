@@ -20,14 +20,9 @@ Make sure you have these installed:
 
 ## How to Run This Project
 
-**Step 1:** Navigate to the project folder
-```bash
-cd SupportTicketAPI
-```
+**Step 1:** Update database connection (if needed)
 
-**Step 2:** Update database connection
-
-Open `appsettings.json` and change the connection string to your database. Mine looks like this but you need to use your own:
+Open `appsettings.json` and change the connection string to your database if you're not using the default one provided.
 
 ```json
 "ConnectionStrings": {
@@ -35,7 +30,7 @@ Open `appsettings.json` and change the connection string to your database. Mine 
 }
 ```
 
-**Step 3:** Run migrations to create tables
+**Step 2:** Run migrations to create tables
 
 ```bash
 dotnet ef database update
@@ -43,29 +38,31 @@ dotnet ef database update
 
 This creates all the tables and adds the 3 roles (MANAGER, SUPPORT, USER) automatically.
 
-**Step 4:** Create a manager account
+**Step 3:** Seed the database with test data
 
-You need at least one MANAGER user to start. I just inserted it directly into the database:
+Run the provided SQL file to clean the database and insert test users and sample tickets:
 
-```sql
-INSERT INTO users (name, email, password, role_id, created_at)
-VALUES (
-  'Admin Manager',
-  'manager@example.com',
-  '$2a$11$yourBcryptHashHere',  -- use bcrypt hashed password here!
-  1,                            -- 1 = MANAGER role
-  NOW()
-);
-```
-
-**NOTE:** Don't use plain text password! You can generate bcrypt hash online or use this if you have dotnet script:
 ```bash
-dotnet script -e "Console.WriteLine(BCrypt.Net.BCrypt.HashPassword(\"yourpassword\"));"
+psql -h your-host -p 5432 -U your-user -d your-database -f db_reset_and_seed.sql
 ```
 
-> 💡 **Quick Start:** I've included test users in `creds.md` that are already seeded in my database. You can use those credentials to quickly test the API!
+Or copy the contents of `db_reset_and_seed.sql` and run it in your PostgreSQL client (pgAdmin, DBeaver, etc.)
 
-**Step 5:** Start the server
+This will create:
+- 6 test users (1 Manager, 2 Support, 3 Regular Users)
+- 6 sample tickets with different statuses
+- 10 comments across tickets
+- Status change logs for audit trail
+
+**Test Credentials:**
+- Manager: `manager@example.com` / `manager123`
+- Support 1: `support1@example.com` / `support123`
+- Support 2: `support2@example.com` / `support123`
+- John (USER): `john@example.com` / `user123`
+- Jane (USER): `jane@example.com` / `user123`
+- Bob (USER): `bob@example.com` / `user123`
+
+**Step 4:** Start the server
 
 ```bash
 dotnet run
