@@ -175,6 +175,10 @@ public class TicketsController : ControllerBase
         if (ticket == null)
             return NotFound(new { message = "Ticket not found." });
 
+        // SUPPORT can only update tickets assigned to them
+        if (CallerRole == "SUPPORT" && ticket.AssignedTo != CallerId)
+            return StatusCode(403, new { message = "You can only update tickets assigned to you." });
+
         // Enforce linear transition
         if (ticket.Status == dto.Status)
             return BadRequest(new { message = $"Ticket is already in status '{dto.Status}'." });
