@@ -66,22 +66,68 @@ public class UsersController : ControllerBase
         return StatusCode(201, MapUser(user));
     }
 
-    /// <summary>List users (MANAGER)</summary>
+    /// <summary>List users (MANAGER) with pagination and filtering</summary>
     [HttpGet]
     [ProducesResponseType(200)]
+    [ProducesResponseType(400)]
     [ProducesResponseType(401)]
     [ProducesResponseType(403)]
-    public async Task<IActionResult> GetUsers()
+    public async Task<IActionResult> GetUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? role = null,
+        [FromQuery] string? search = null)
     {
         if (CallerRole != "MANAGER")
             return StatusCode(403, new { message = "Only MANAGER can list users." });
 
-        var users = await _db.Users
-            .Include(u => u.Role)
+        // Validate pagination parameters
+        if (page < 1)
+            return BadRequest(new { message = "Page must be at least 1." });
+
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest(new { message = "Page size must be between 1 and 100." });
+
+        // Validate role filter
+        var validRoles = new[] { "MANAGER", "SUPPORT", "USER" };
+        if (!string.IsNullOrEmpty(role) && !validRoles.Contains(role.ToUpper()))
+            return BadRequest(new { message = "Invalid role. Must be one of: MANAGER, SUPPORT, USER." });
+
+        IQueryable<User> query = _db.Users.Include(u => u.Role);
+
+        // Apply role filter
+        if (!string.IsNullOrEmpty(role))
+            query = query.Where(u => u.Role.Name == role.ToUpper());
+
+        // Apply search filter (name or email)
+        if (!string.IsNullOrEmpty(search))
+            query = query.Where(u => u.Name.Contains(search) || u.Email.Contains(search));
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply ordering and pagination
+        var users = await query
             .OrderBy(u => u.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(users.Select(MapUser));
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return Ok(new
+        {
+            data = users.Select(MapUser),
+            pagination = new
+            {
+                page,
+                pageSize,
+                totalCount,
+                totalPages,
+                hasNextPage = page < totalPages,
+                hasPreviousPage = page > 1
+            }
+        });
     }
 
     // ── Helper ────────────────────────────────────────────────

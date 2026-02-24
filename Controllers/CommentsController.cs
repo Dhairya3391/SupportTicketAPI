@@ -77,13 +77,17 @@ public class CommentsController : ControllerBase
     }
 
     // ── GET /tickets/{id}/comments ────────────────────────────
-    /// <summary>List comments for a ticket</summary>
+    /// <summary>List comments for a ticket with pagination</summary>
     [HttpGet("tickets/{id}/comments")]
     [ProducesResponseType(200)]
+    [ProducesResponseType(400)]
     [ProducesResponseType(401)]
     [ProducesResponseType(403)]
     [ProducesResponseType(404)]
-    public async Task<IActionResult> GetComments(int id)
+    public async Task<IActionResult> GetComments(
+        int id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var ticket = await _db.Tickets.FindAsync(id);
         if (ticket == null)
@@ -92,13 +96,42 @@ public class CommentsController : ControllerBase
         if (!CanAccessTicket(ticket))
             return StatusCode(403, new { message = "You do not have permission to view comments on this ticket." });
 
-        var comments = await _db.TicketComments
+        // Validate pagination parameters
+        if (page < 1)
+            return BadRequest(new { message = "Page must be at least 1." });
+
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest(new { message = "Page size must be between 1 and 100." });
+
+        var query = _db.TicketComments
             .Include(c => c.User).ThenInclude(u => u.Role)
-            .Where(c => c.TicketId == id)
-            .OrderBy(c => c.Id)
+            .Where(c => c.TicketId == id);
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply ordering and pagination
+        var comments = await query
+            .OrderBy(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(comments.Select(MapComment));
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return Ok(new
+        {
+            data = comments.Select(MapComment),
+            pagination = new
+            {
+                page,
+                pageSize,
+                totalCount,
+                totalPages,
+                hasNextPage = page < totalPages,
+                hasPreviousPage = page > 1
+            }
+        });
     }
 
     // ── PATCH /comments/{id} ──────────────────────────────────

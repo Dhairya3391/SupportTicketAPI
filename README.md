@@ -173,20 +173,66 @@ Relationships are set up so deleting a ticket automatically deletes its comments
 
 **Users (MANAGER only):**
 - `POST /users` - Create new user
-- `GET /users` - List all users
+- `GET /users` - List all users with pagination and filtering
 
 **Tickets:**
 - `POST /tickets` - Create ticket (USER, MANAGER)
-- `GET /tickets` - Get tickets (filtered by role)
+- `GET /tickets` - Get tickets with pagination and filtering (filtered by role)
 - `PATCH /tickets/{id}/assign` - Assign to support (MANAGER, SUPPORT)
 - `PATCH /tickets/{id}/status` - Update status (MANAGER, SUPPORT)
 - `DELETE /tickets/{id}` - Delete ticket (MANAGER only)
 
 **Comments:**
 - `POST /tickets/{id}/comments` - Add comment
-- `GET /tickets/{id}/comments` - Get all comments
+- `GET /tickets/{id}/comments` - Get all comments with pagination
 - `PATCH /comments/{id}` - Edit comment (author or MANAGER)
 - `DELETE /comments/{id}` - Delete comment (author or MANAGER)
+
+## Pagination & Filtering
+
+**GET /tickets** supports the following query parameters:
+- `page` (default: 1) - Page number
+- `pageSize` (default: 10, max: 100) - Items per page
+- `status` - Filter by status (OPEN, IN_PROGRESS, RESOLVED, CLOSED)
+- `priority` - Filter by priority (LOW, MEDIUM, HIGH)
+- `assignedTo` - Filter by assigned user ID (MANAGER only)
+- `createdBy` - Filter by creator user ID (MANAGER only)
+- `search` - Search in title or description
+- `fromDate` - Filter tickets created after this date (ISO 8601 format)
+- `toDate` - Filter tickets created before this date (ISO 8601 format)
+
+**GET /users** supports:
+- `page` (default: 1)
+- `pageSize` (default: 10, max: 100)
+- `role` - Filter by role (MANAGER, SUPPORT, USER)
+- `search` - Search in name or email
+
+**GET /tickets/{id}/comments** supports:
+- `page` (default: 1)
+- `pageSize` (default: 20, max: 100)
+
+**Example requests:**
+```
+GET /tickets?page=1&pageSize=5&status=OPEN&priority=HIGH
+GET /tickets?search=bug&fromDate=2026-01-01
+GET /users?role=SUPPORT&page=1
+GET /tickets/5/comments?page=1&pageSize=10
+```
+
+**Response format:**
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "pageSize": 10,
+    "totalCount": 25,
+    "totalPages": 3,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
 
 ## Validation Rules
 
@@ -198,4 +244,4 @@ Relationships are set up so deleting a ticket automatically deletes its comments
 
 ---
 
-*This project demonstrates a complete RESTful API with proper authentication, authorization, and business logic enforcement. All requirements from the specification have been implemented and tested.*
+*This project demonstrates a complete RESTful API with proper authentication, authorization, business logic enforcement, pagination, and filtering. All core requirements from the specification have been implemented and tested.*

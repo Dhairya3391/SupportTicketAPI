@@ -94,16 +94,42 @@ public class TicketsController : ControllerBase
     }
 
     // ── GET /tickets ──────────────────────────────────────────
-    /// <summary>Get tickets (MANAGER=all, SUPPORT=assigned, USER=own)</summary>
+    /// <summary>Get tickets (MANAGER=all, SUPPORT=assigned, USER=own) with pagination and filtering</summary>
     [HttpGet]
     [ProducesResponseType(200)]
+    [ProducesResponseType(400)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> GetTickets()
+    public async Task<IActionResult> GetTickets(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null,
+        [FromQuery] string? priority = null,
+        [FromQuery] int? assignedTo = null,
+        [FromQuery] int? createdBy = null,
+        [FromQuery] string? search = null,
+        [FromQuery] DateTime? fromDate = null,
+        [FromQuery] DateTime? toDate = null)
     {
+        // Validate pagination parameters
+        if (page < 1)
+            return BadRequest(new { message = "Page must be at least 1." });
+
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest(new { message = "Page size must be between 1 and 100." });
+
+        // Validate status filter
+        if (!string.IsNullOrEmpty(status) && !ValidStatuses.Contains(status.ToUpper()))
+            return BadRequest(new { message = "Invalid status. Must be one of: OPEN, IN_PROGRESS, RESOLVED, CLOSED." });
+
+        // Validate priority filter
+        if (!string.IsNullOrEmpty(priority) && !ValidPriorities.Contains(priority.ToUpper()))
+            return BadRequest(new { message = "Invalid priority. Must be one of: LOW, MEDIUM, HIGH." });
+
         IQueryable<Ticket> query = _db.Tickets
             .Include(t => t.Creator).ThenInclude(u => u.Role)
             .Include(t => t.Assignee!).ThenInclude(u => u.Role);
 
+        // Apply role-based filtering
         query = CallerRole switch
         {
             "MANAGER" => query,
@@ -111,8 +137,58 @@ public class TicketsController : ControllerBase
             _ => query.Where(t => t.CreatedBy == CallerId) // USER
         };
 
-        var tickets = await query.OrderBy(t => t.Id).ToListAsync();
-        return Ok(tickets.Select(MapTicket));
+        // Apply status filter
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(t => t.Status == status.ToUpper());
+
+        // Apply priority filter
+        if (!string.IsNullOrEmpty(priority))
+            query = query.Where(t => t.Priority == priority.ToUpper());
+
+        // Apply assignedTo filter (MANAGER only)
+        if (assignedTo.HasValue && CallerRole == "MANAGER")
+            query = query.Where(t => t.AssignedTo == assignedTo.Value);
+
+        // Apply createdBy filter (MANAGER only)
+        if (createdBy.HasValue && CallerRole == "MANAGER")
+            query = query.Where(t => t.CreatedBy == createdBy.Value);
+
+        // Apply search filter (title or description)
+        if (!string.IsNullOrEmpty(search))
+            query = query.Where(t => t.Title.Contains(search) || t.Description.Contains(search));
+
+        // Apply date range filters
+        if (fromDate.HasValue)
+            query = query.Where(t => t.CreatedAt >= fromDate.Value);
+
+        if (toDate.HasValue)
+            query = query.Where(t => t.CreatedAt <= toDate.Value);
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply ordering and pagination
+        var tickets = await query
+            .OrderByDescending(t => t.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return Ok(new
+        {
+            data = tickets.Select(MapTicket),
+            pagination = new
+            {
+                page,
+                pageSize,
+                totalCount,
+                totalPages,
+                hasNextPage = page < totalPages,
+                hasPreviousPage = page > 1
+            }
+        });
     }
 
     // ── PATCH /tickets/{id}/assign ────────────────────────────
