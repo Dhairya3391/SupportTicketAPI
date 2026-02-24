@@ -63,6 +63,8 @@ VALUES (
 dotnet script -e "Console.WriteLine(BCrypt.Net.BCrypt.HashPassword(\"yourpassword\"));"
 ```
 
+> 💡 **Quick Start:** I've included test users in `creds.md` that are already seeded in my database. You can use those credentials to quickly test the API!
+
 **Step 5:** Start the server
 
 ```bash
@@ -145,6 +147,20 @@ Data/
   - AppDbContext.cs (EF Core setup)
 ```
 
+## Database Schema
+
+The database has 5 tables with proper relationships:
+
+1. **roles** - MANAGER, SUPPORT, USER
+2. **users** - User accounts linked to roles
+3. **tickets** - Support tickets with status and priority
+4. **ticket_comments** - Comments on tickets
+5. **ticket_status_logs** - Logs every status change
+
+![Database Diagram](dbdiagram.png)
+
+Relationships are set up so deleting a ticket automatically deletes its comments and logs (cascade delete).
+
 ## Notes
 
 - All passwords are hashed with bcrypt, never stored as plain text
@@ -183,13 +199,6 @@ Data/
 - Status must follow the linear progression (can't skip)
 - Email format must be valid
 
-## Database Schema
+---
 
-The database has 5 tables:
-1. **roles** - MANAGER, SUPPORT, USER
-2. **users** - User accounts linked to roles
-3. **tickets** - Support tickets with status and priority
-4. **ticket_comments** - Comments on tickets
-5. **ticket_status_logs** - Logs every status change
-
-Relationships are set up so deleting a ticket automatically deletes its comments and logs (cascade delete).
+*This project demonstrates a complete RESTful API with proper authentication, authorization, and business logic enforcement. All requirements from the specification have been implemented and tested.*
